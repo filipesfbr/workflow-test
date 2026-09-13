@@ -19,8 +19,8 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
 | --- | --- | --- |
 | `ci.yml` | push em `main`/`develop`, qualquer PR e `workflow_dispatch` | `npm ci` → lint → build → test → checks |
 | `bump.yml` | push em `develop` (+ `workflow_dispatch` com `kind`) | bumpa a versão quando a develop está igual à última tag (1 por ciclo) |
-| `release.yml` | push em `main` (e `workflow_dispatch`) | cria tag `vX.Y.Z` + Release, depois sincroniza `develop` |
-| `merge-when-green.yml` | conclusão do CI | mergeia o PR marcado com a label `merge` |
+| `release.yml` | push em `main` (e `workflow_dispatch`) | cria tag `vX.Y.Z` + Release, depois sincroniza `develop` (recriando-a se não existir) |
+| `merge-when-green.yml` | conclusão do CI | mergeia o PR marcado com a label `merge` e dispara o follow-up (bump/release) |
 | `pr-title.yml` | PR aberto/editado | exige título em Conventional Commits |
 
 ## Regras (o porquê)
@@ -53,6 +53,23 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
 9. **Squash em PR pra `develop`** (develop linear, 1 commit por PR, título vira a
    mensagem) e **merge commit em PR pra `main`** (commit-âncora do release, que a
    tag aponta).
+10. **A `develop` nunca pode ser apagada — por ninguém.** Na prática:
+    - `delete_branch_on_merge` fica **`false`** no repo. Com ele ligado, mergear um
+      PR cujo head é a `develop` — que é justamente o PR de release — apaga a
+      develop inteira. Aconteceu no primeiro teste deste repo: o `release.yml`
+      falhou com `A branch or tag with the name 'develop' could not be found`.
+    - O bot de auto-merge usa `--delete-branch` **só** em PR pra `develop`; o PR de
+      release (head = `develop`) nunca apaga a head.
+    - O `release.yml` recria a `develop` a partir de `main` se ela não existir, com
+      `::warning::` no log — é rede de segurança, não licença pra apagar.
+    - Em repo **público**, branch protection é grátis: `allow_deletions: false` +
+      `enforce_admins: true` (+ `allow_force_pushes: false`) torna a deleção
+      impossível, inclusive pro dono. Em repo **privado** isso exige GitHub Pro —
+      sem Pro, a proteção é só a disciplina e o `delete_branch_on_merge: false`.
+11. **Merge feito pelo bot não dispara workflow** (o `GITHUB_TOKEN` não cria run por
+    `push`). Por isso o bot, depois de mergear, chama `workflow_dispatch` no que
+    viria do push: `bump.yml` quando a base é `develop`, `release.yml` quando é
+    `main`. Sem isso, um PR mergeado pelo bot nunca geraria bump nem release.
 
 ## Versionamento
 

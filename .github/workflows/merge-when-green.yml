@@ -2,8 +2,16 @@ name: Merge when green
 
 # Bot caseiro de auto-merge: funciona em repositório privado no plano free, onde
 # branch protection / required checks não existem.
-# Como usar: adicione a label `merge` no PR; quando o CI passar, ele mergeia
-# (squash em PR pra develop, merge commit em PR pra main) e apaga a branch.
+# Como usar: adicione a label `merge` ANTES do CI terminar; quando o CI passar,
+# ele mergeia (squash em PR pra develop, merge commit em PR pra main).
+#
+# ⚠️ Duas armadilhas tratadas aqui:
+# 1. Merge feito com GITHUB_TOKEN não dispara evento de `push` → nenhum workflow
+#    roda depois. Como o bot usa o GITHUB_TOKEN, ele tem que disparar na mão o
+#    que viria do push (bump na develop / release na main) via workflow_dispatch,
+#    que é a exceção prevista na doc.
+# 2. `--delete-branch` só pode ser usado em PR pra develop. O PR de release tem a
+#    develop como head: apagar a "branch do PR" apagaria a develop inteira.
 
 on:
   workflow_run:
@@ -49,16 +57,25 @@ jobs:
               continue
             fi
 
-            FLAG=--merge
-            [ "$BASE" = "develop" ] && FLAG=--squash
-
-            echo "Mergeando PR #$NUM (base $BASE) com $FLAG"
-            gh pr merge "$NUM" --repo "$REPO" "$FLAG" --delete-branch
-
-            if [ "$BASE" = "main" ]; then
-              # Push feito com GITHUB_TOKEN não dispara workflow por evento `push`.
-              # workflow_dispatch é a exceção: disparamos o release na mão.
-              echo "Disparando o release (merge foi feito pelo bot)"
-              gh workflow run release.yml --repo "$REPO" --ref main
+            if [ "$BASE" = "develop" ]; then
+              echo "Mergeando PR #$NUM (base develop) com squash"
+              gh pr merge "$NUM" --repo "$REPO" --squash --delete-branch
+              FOLLOWUP=bump.yml
+            else
+              echo "Mergeando PR #$NUM (base $BASE) com merge commit — sem apagar a head (é a develop)"
+              gh pr merge "$NUM" --repo "$REPO" --merge
+              FOLLOWUP=release.yml
             fi
+
+            # Sem isso o merge do bot não dispara nada (GITHUB_TOKEN não cria run
+            # por push). Espera o merge aparecer como head da branch antes.
+            MERGE_SHA=$(gh pr view "$NUM" --repo "$REPO" --json mergeCommit -q .mergeCommit.oid)
+            for _ in $(seq 1 12); do
+              HEAD_NOW=$(gh api "repos/$REPO/commits/$BASE" -q .sha)
+              [ "$HEAD_NOW" = "$MERGE_SHA" ] && break
+              sleep 5
+            done
+
+            echo "Disparando $FOLLOWUP em $BASE (o push do bot não dispara workflow)"
+            gh workflow run "$FOLLOWUP" --repo "$REPO" --ref "$BASE"
           done <<< "$PRS"

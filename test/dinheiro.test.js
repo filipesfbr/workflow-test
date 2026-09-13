@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { dividir, formatarBRL, paraCentavos, somar, valorPorExtenso } from '../dist/index.js';
+import { aplicarPercentual, dividir, formatarBRL, paraCentavos, somar, valorPorExtenso } from '../dist/index.js';
 
 describe('somar', () => {
   it('soma centavos inteiros sem erro de ponto flutuante', () => {
@@ -15,6 +15,26 @@ describe('somar', () => {
 
   it('recusa valor negativo', () => {
     assert.throws(() => somar([-1]), /negativo/);
+  });
+});
+
+describe('aplicarPercentual', () => {
+  it('arredonda para o centavo mais próximo', () => {
+    assert.equal(aplicarPercentual(1000, 10), 100);
+    assert.equal(aplicarPercentual(1234, 12.5), 154); // 154,25 -> 154
+    assert.equal(aplicarPercentual(1236, 12.5), 155); // 154,50 -> 155
+    assert.equal(aplicarPercentual(5, 0.5), 0); // 0,025 -> 0
+  });
+
+  it('é identidade em 100%', () => {
+    for (const valor of [0, 1, 99, 12345, 999999]) {
+      assert.equal(aplicarPercentual(valor, 100), valor);
+    }
+  });
+
+  it('recusa percentual inválido', () => {
+    assert.throws(() => aplicarPercentual(1000, -1), /Percentual inválido/);
+    assert.throws(() => aplicarPercentual(1000, Number.NaN), /Percentual inválido/);
   });
 });
 

@@ -1,0 +1,64 @@
+name: Merge when green
+
+# Bot caseiro de auto-merge: funciona em repositório privado no plano free, onde
+# branch protection / required checks não existem.
+# Como usar: adicione a label `merge` no PR; quando o CI passar, ele mergeia
+# (squash em PR pra develop, merge commit em PR pra main) e apaga a branch.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Merge dos PRs marcados com a label `merge`
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          PRS=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" \
+            --json number,baseRefName,headRefOid,labels \
+            --jq '.[] | select([.labels[].name] | index("merge")) | [.number, .baseRefName, .headRefOid] | @tsv')
+
+          if [ -z "$PRS" ]; then
+            echo "Nenhum PR com a label \`merge\` na branch $HEAD_BRANCH"
+            exit 0
+          fi
+
+          while IFS=$'\t' read -r NUM BASE SHA; do
+            [ -n "$NUM" ] || continue
+
+            if [ "$SHA" != "$HEAD_SHA" ]; then
+              echo "PR #$NUM recebeu commits depois do CI — não mergeando agora"
+              continue
+            fi
+
+            FLAG=--merge
+            [ "$BASE" = "develop" ] && FLAG=--squash
+
+            echo "Mergeando PR #$NUM (base $BASE) com $FLAG"
+            gh pr merge "$NUM" --repo "$REPO" "$FLAG" --delete-branch
+
+            if [ "$BASE" = "main" ]; then
+              # Push feito com GITHUB_TOKEN não dispara workflow por evento `push`.
+              # workflow_dispatch é a exceção: disparamos o release na mão.
+              echo "Disparando o release (merge foi feito pelo bot)"
+              gh workflow run release.yml --repo "$REPO" --ref main
+            fi
+          done <<< "$PRS"

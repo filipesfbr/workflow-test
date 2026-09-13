@@ -1,0 +1,91 @@
+name: Bump version on PR to main
+
+# Por que o bump vive aqui e não no release:
+# o deploy builda o commit de main e lê a versão do `package.json` (a imagem não
+# tem .git). A versão precisa estar NO commit que entra em main — bumpar depois
+# do merge gera um push extra em main e, com isso, um segundo deploy.
+#
+# Label no PR controla o salto: `release:minor` / `release:major`.
+# Sem label = patch. Se o package.json do PR já estiver à frente da última tag,
+# ele ganha (não rebaixa versão).
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bump-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configurar git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump se necessário
+        id: version
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          BASE_VERSION=${LATEST_TAG#v}
+          BASE_VERSION=${BASE_VERSION:-0.0.0}
+          HEAD_VERSION=$(node -p "require('./package.json').version")
+
+          KIND=patch
+          case " $LABELS " in
+            *" release:major "*) KIND=major ;;
+            *" release:minor "*) KIND=minor ;;
+          esac
+
+          NEXT_VERSION=$(node -e '
+            const [base, head, kind] = process.argv.slice(1);
+            const parse = (v) => v.split(".").map(Number);
+            const gt = (a, b) =>
+              a[0] > b[0] || (a[0] === b[0] && a[1] > b[1]) ||
+              (a[0] === b[0] && a[1] === b[1] && a[2] > b[2]);
+            const b = parse(base);
+            const h = parse(head);
+            const candidato =
+              kind === "major" ? [b[0] + 1, 0, 0] :
+              kind === "minor" ? [b[0], b[1] + 1, 0] :
+              [b[0], b[1], b[2] + 1];
+            console.log((gt(h, candidato) ? h : candidato).join("."));
+          ' "$BASE_VERSION" "$HEAD_VERSION" "$KIND")
+
+          echo "versão atual do PR: $HEAD_VERSION | última tag: $BASE_VERSION | salto: $KIND"
+
+          if [ "$NEXT_VERSION" = "$HEAD_VERSION" ]; then
+            echo "Sem bump: $HEAD_VERSION já cobre a próxima versão"
+            echo "version=$HEAD_VERSION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Bumpando $HEAD_VERSION -> $NEXT_VERSION"
+          npm version "$NEXT_VERSION" --no-git-tag-version
+          git add package.json
+          if [ -f package-lock.json ]; then
+            git add package-lock.json
+          fi
+          git commit -m "chore: bump version to $NEXT_VERSION"
+          git push origin "HEAD:${{ github.head_ref }}"
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"

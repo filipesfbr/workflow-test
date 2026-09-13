@@ -56,6 +56,18 @@ export function paraCentavos(entrada: string): number {
 }
 
 /**
+ * Aplica um percentual sobre um valor em centavos, arredondando para o centavo
+ * mais próximo (meio para cima). Útil para taxa, desconto e comissão.
+ */
+export function aplicarPercentual(centavos: number, percentual: number): number {
+  exigirCentavos(centavos);
+  if (!Number.isFinite(percentual) || percentual < 0) {
+    throw new Error(`Percentual inválido: ${percentual} (esperado número >= 0)`);
+  }
+  return Math.round((centavos * percentual) / 100);
+}
+
+/**
  * Divide um valor em N partes sem perder centavo: o resto da divisão vai para
  * as primeiras partes. Invariante garantida (e checada no CI): somar(dividir(x, n)) === x.
  */

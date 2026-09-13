@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { formatarBRL, somar, valorPorExtenso } from '../dist/index.js';
+import { formatarBRL, paraCentavos, somar, valorPorExtenso } from '../dist/index.js';
 
 describe('somar', () => {
   it('soma centavos inteiros sem erro de ponto flutuante', () => {
@@ -21,6 +21,22 @@ describe('somar', () => {
 describe('formatarBRL', () => {
   it('formata no padrão pt-BR', () => {
     assert.equal(formatarBRL(123456).replace(/\u00a0/g, ' '), 'R$ 1.234,56');
+  });
+});
+
+describe('paraCentavos', () => {
+  it('lê o padrão pt-BR', () => {
+    assert.equal(paraCentavos('40,99'), 4099);
+    assert.equal(paraCentavos('R$ 1.234,56'), 123456);
+    assert.equal(paraCentavos('1.234'), 123400);
+    assert.equal(paraCentavos('0,5'), 50);
+    assert.equal(paraCentavos('40'), 4000);
+  });
+
+  it('recusa formato ambíguo ou inválido', () => {
+    assert.throws(() => paraCentavos('40.99'), /Valor inválido/);
+    assert.throws(() => paraCentavos('1,999'), /Valor inválido/);
+    assert.throws(() => paraCentavos('abc'), /Valor inválido/);
   });
 });
 

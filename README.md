@@ -1,89 +1,219 @@
 # workflow-test
 
-Repositório de teste do **pipeline padrão** para os projetos do Filipe.
-O objetivo não é o código — é validar de ponta a ponta o fluxo de branches,
-bump de versão, release por tag e merge para `main`, para depois aplicar o mesmo
-desenho em todos os repos (cofre-ai, romulo-seguros, erpstratos, pessoais).
+Bancada do **pipeline padrão** dos projetos do Filipe (cofre-ai, romulo-seguros,
+erpstratos, pessoais). O código em `src/dinheiro.ts` existe só para dar lint,
+build, test e checks de verdade para a pipeline rodar — o que este repositório
+valida é o **fluxo**: branches, bump de versão, release por tag e sync
+`main → develop`.
 
-## Fluxo
+Este README é o mapa exato do que está ligado hoje: cada evento, cada workflow,
+o que escreve onde e com qual guarda.
+
+## O fluxo em uma imagem
 
 ```
-feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ──▶ tag + Release
-                    ▲                                          │
-                    └──────────── sync main → develop ─────────┘
+mudança:
+  feat/slug ──PR (squash)──▶ develop ──PR "release: vX.Y.Z" (merge commit)──▶ main
+                               ▲                                              │
+                               │                                     tag vX.Y.Z + Release
+                               │                                              │
+versão (automático):           └──────── sync main → develop ◀────────────────┘
+  push em develop ──▶ bump.yml   → commit "chore: bump version to X.Y.Z" na develop
+  push em main    ──▶ release.yml → tag + Release → sync (merge do bot) na develop
 ```
 
-## Workflows
+- `develop` = integração. `main` = o que foi released (default branch do repo).
+- A versão **entra no commit que vai para a `main`**, e ela é colocada lá antes de
+  existir o PR de release: o bump acontece na `develop`.
+- Nada é mergeado por automação. Todo merge é seu.
 
-| Workflow | Dispara em | Faz |
-| --- | --- | --- |
-| `ci.yml` | push em `main`/`develop`, qualquer PR e `workflow_dispatch` | `npm ci` → lint → build → test → checks |
-| `bump.yml` | push em `develop` (+ `workflow_dispatch` com `kind`) | bumpa a versão quando a develop está igual à última tag (1 por ciclo) |
-| `release.yml` | push em `main` (e `workflow_dispatch`) | cria tag `vX.Y.Z` + Release, depois sincroniza `develop` (recriando-a se não existir) |
+## Mapa de gatilhos
 
-## Regras (o porquê)
+| Evento | Workflow | Job | Escreve? |
+| --- | --- | --- | --- |
+| PR aberto/atualizado (qualquer base) | `ci.yml` | `ci` | não (`contents: read`) |
+| push em `develop` | `ci.yml` | `ci` | não |
+| push em `develop` | `bump.yml` | `bump` | **sim**, commit direto na `develop` |
+| push em `main` | `ci.yml` | `ci` | não |
+| push em `main` | `release.yml` | `release` → `sync-develop` | **sim**, cria tag+Release e commita na `develop` |
+| `workflow_dispatch` manual | os três | idem | idem |
 
-1. **A versão entra no commit que vai pra `main`, antes de existir o PR de
-   release.** O deploy builda o commit e lê o `package.json` (a imagem não tem
-   `.git`), então a versão precisa estar no commit — mas **não** pode ser
-   empurrada na branch de um PR: quando um workflow empurra um commit na branch
-   de um PR com o `GITHUB_TOKEN`, o GitHub passa a exigir aprovação manual
-   ("Approve and run") para os workflows daquele PR — o PR de release ficaria com os
-   checks pendentes, e com branch protection o merge travaria. Por isso o bump vive
-   na `develop`.
-2. **1 bump por ciclo de release.** O workflow só mexe quando a versão da develop
-   é igual à última tag. Depois do release (`main` → tag → sync `develop`), o
-   primeiro merge na develop bumpa; os demais merges não fazem nada.
-3. **Minor/major é decisão humana:** edite o `package.json` num PR (o workflow
-   respeita e nunca rebaixa) ou rode o `bump.yml` na mão com `kind=minor|major`.
-4. **O workflow de release nunca escreve em `main`.** Ele só lê a versão mergeada
-   e tagueia. Com a guarda de "tag já existe", re-run e hotfix direto em `main`
-   não recriam release.
-5. **Deploy ≠ release.** Deploy é o Easypanel buildando o push em `main`.
-   Release é a tag + notas: rastro, auditoria e rollback.
-6. **CI roda o mesmo comando que você roda local**, e falha em vez de consertar
-   (sem `lint --fix` no CI).
-7. **Checks de regra de negócio não precisam de banco.** `checks/*.check.mjs` roda
-   em segundos e é o que trava regressão de regra com valor legal.
+Detalhe que engana: o push do bump na `develop` **não** dispara CI (ver regra 8).
+O CI que aparece em `push`/`develop` é o do merge do PR, rodado no commit *antes*
+do bump.
+
+## O ciclo de release, passo a passo
+
+Exemplo real — foi assim que saiu a `v0.1.4`:
+
+1. **Feature entra na `develop`.** PR `chore/ci-sem-corrida` (#10) com base
+   `develop`, CI verde, merge por **squash**. A `develop` fica linear (1 commit
+   por PR, o título vira a mensagem).
+2. **O push na `develop` dispara duas coisas em paralelo:** o `ci.yml` (roda no
+   commit do merge) e o `bump.yml`. O `bump.yml` vê que a versão da `develop`
+   (0.1.3) é igual à última tag (`v0.1.3`), sobe para `0.1.4` e commita
+   `chore: bump version to 0.1.4` direto na `develop`.
+3. **PR de release.** `develop → main`, título `release: v0.1.4` (#11). O CI roda
+   no PR como em qualquer outro. Merge por **merge commit** — é esse commit
+   âncora que a tag vai apontar depois.
+4. **O push na `main` dispara o `release.yml`:** lê `package.json` do commit
+   mergeado, cria a tag `v0.1.4` e a GitHub Release com notas geradas
+   automaticamente. Em paralelo o `ci.yml` roda na `main`.
+5. **`sync-develop`** (job seguinte do `release.yml`, `needs: release`): faz
+   `merge origin/main` na `develop` e pusha `chore: sync main into develop`. Em
+   condições normais é no-op — o merge do PR de release já deixou a `main`
+   contida na `develop` (o `merge-base --is-ancestor` detecta e sai sem fazer
+   nada). Ele existe para reancorar a `develop` no ponto do release.
+
+Depois disso `main` e `develop` apontam para o mesmo conteúdo, e o próximo merge
+na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
+
+## Os três workflows
+
+### `ci.yml` — o portão de qualidade
+
+- **Dispara em:** `push` em `[main, develop]`, todo `pull_request` e
+  `workflow_dispatch`.
+- **Roda:** `npm ci` → `npm run lint` → `npm run build` → `npm test` →
+  `npm run checks` (Node 22, cache do npm).
+- **Não roda `--fix`:** o CI falha, quem conserta é o dev.
+- **`permissions: contents: read`** — o CI não escreve nada.
+- **Concurrency:** `ci-${{ github.ref }}-${{ github.event_name }}` com
+  `cancel-in-progress: true`. O `event_name` está no grupo de propósito: `push` e
+  execução manual no **mesmo ref** são eventos diferentes e, sem ele, travavam um
+  ao outro em vez de um cancelar o outro.
+- Os `checks/*.check.mjs` são regras de negócio puras (sem banco, sem rede, sem
+  servidor) e rodam em segundos.
+- **Hoje o gatilho `workflow_dispatch` não é usado por nenhum workflow**: até o
+  PR #10 o `bump.yml` chamava `gh workflow run ci.yml --ref develop` depois de
+  commitar a versão; isso foi removido (era exatamente ele que causava a corrida
+  entre CIs na mesma branch). O gatilho ficou como ferramenta manual — e o
+  comentário no topo do arquivo ainda descreve o uso antigo.
+
+### `bump.yml` — a versão na `develop`
+
+- **Dispara em:** `push` em `develop`, e `workflow_dispatch` com o input `kind`
+  (`patch` | `minor` | `major`, padrão `patch`).
+- **`permissions: contents: write`**, concurrency `bump-develop` com
+  `cancel-in-progress: false` (bump não se cancela: dois bumps concorrentes
+  gerariam versão errada).
+- **Lógica exata:**
+  1. `LATEST_TAG` = última tag que casa com `v*` (`git describe --tags --abbrev=0`).
+  2. `BASE` = essa tag sem o `v` (ou `0.0.0` se não existir tag).
+  3. `HEAD` = `version` do `package.json` da `develop`.
+  4. `CANDIDATO` = `BASE` + 1 no nível escolhido (`patch`/`minor`/`major`).
+  5. `NOVA` = o **maior** entre `CANDIDATO` e `HEAD`.
+  6. Se `NOVA == HEAD`, sai sem fazer nada. Senão `npm version --no-git-tag-version`,
+     commita `chore: bump version to X.Y.Z` (incluindo `package-lock.json`, se
+     existir) e pusha na `develop`.
+- **Consequências dessa regra:**
+  - **1 bump por ciclo de release.** Depois do release, o primeiro merge na
+    `develop` bumpa; os merges seguintes não fazem nada (a versão já está à
+    frente da última tag).
+  - **Nunca rebaixa.** Se você subiu a versão na mão no `package.json`, o
+    workflow respeita — ou não faz nada, ou sobe a partir dela.
+  - **Se a `develop` ficou atrás** da última tag (ex.: `0.1.0` com tag `v0.1.4`),
+    o próximo push a traz direto para `0.1.5`.
+- **Minor/major é decisão humana**, por dois caminhos: editar o `package.json` no
+  PR (o workflow respeita) ou rodar o workflow na mão com `kind`.
+- **Por que na `develop` e não no PR de release:** quando um workflow empurra um
+  commit na branch de um PR usando o `GITHUB_TOKEN`, o GitHub passa a exigir
+  aprovação manual ("Approve and run") para os workflows daquele PR — o PR de
+  release ficaria com checks pendentes esperando aprovação. Empurrando na
+  `develop`, antes de existir o PR de release, isso não acontece.
+
+### `release.yml` — tag, Release e sync
+
+- **Dispara em:** `push` em `main` e `workflow_dispatch` (re-run, ou release
+  depois de um merge feito por automação, que não gera evento de `push`).
+- **`permissions: contents: write`**, concurrency `release-main` serializado.
+- **Job `release`:**
+  1. Lê `version` do `package.json` do commit da `main`.
+  2. **Guarda de idempotência:** se a tag `vX.Y.Z` já existe, não cria nada
+     (`release ignorado`). É o que protege re-run e hotfix direto na `main` de
+     recriar o release em cima de si mesmo.
+  3. Cria a tag + Release (`softprops/action-gh-release@v2`, notas geradas,
+     `make_latest: true`).
+  - **Este workflow nunca escreve na `main`.** Um push extra ali geraria um
+    segundo deploy.
+- **Job `sync-develop`** (`needs: release`) — rede de segurança para a `develop`:
+  - Faz checkout de `main` (não de `develop`: se a branch não existir, o checkout
+    mataria o job antes de conseguir recriá-la).
+  - Se a `develop` não existe → **recria a partir da `main`** e sai, com
+    `::warning::` no log.
+  - Se `main` já é ancestral de `develop` → nada a fazer (caso normal).
+  - Senão, `git merge origin/main` e push. **Conflito aqui não é resolvido no
+    automático:** o job falha, e a `develop` fica dessincronizada até alguém
+    resolver.
+
+## Regras do desenho (o porquê)
+
+1. **A versão está no commit que vai pra `main`, antes do PR de release.** O
+   deploy builda o commit e lê o `package.json` (a imagem não leva `.git`), então
+   a versão precisa estar lá — mas não pode ser empurrada na branch de um PR
+   (ver "Approve and run" acima). Por isso o bump vive na `develop`.
+2. **1 bump por ciclo de release** (regra do `bump.yml`, detalhada acima).
+3. **Minor/major é decisão humana**, não heurística de commit.
+4. **O release nunca escreve na `main`** e é idempotente por checagem de tag.
+5. **Deploy ≠ release.** Deploy é o Easypanel buildando o push na `main`. Release
+   é a tag + notas: rastro, auditoria e rollback.
+6. **O CI roda o mesmo comando que você roda local**, e falha em vez de consertar.
+7. **Checks de regra de negócio não precisam de banco** — é o que trava regressão
+   de regra com valor legal em segundos.
 8. **Push feito com `GITHUB_TOKEN` não dispara workflow.** Vale para o commit do
-   bump e para o sync: o commit da versão não gera run de CI (só `package.json` e
-   `package-lock.json` mudam). Vale saber também para qualquer automação futura:
-   um merge feito por automação não gera run de `push` em `main` — se um dia isso
-   existir, precisa disparar via `workflow_dispatch`, que é a exceção prevista na
-   doc.
-9. **Squash em PR pra `develop`** (develop linear, 1 commit por PR, título vira a
-   mensagem) e **merge commit em PR pra `main`** (commit-âncora do release, que a
-   tag aponta).
-10. **A `develop` nunca pode ser apagada — por ninguém.** Na prática:
-    - `delete_branch_on_merge` fica **`false`** no repo. Com ele ligado, mergear um
-      PR cujo head é a `develop` — que é justamente o PR de release — apaga a
-      develop inteira. Aconteceu no primeiro teste deste repo: o `release.yml`
-      falhou com `A branch or tag with the name 'develop' could not be found`.
-    - Nunca use `--delete-branch` num PR pra `main`: a head é a `develop`. Apagar a
-      "branch do PR" nesse caso apaga a develop inteira.
-    - O `release.yml` recria a `develop` a partir de `main` se ela não existir, com
-      `::warning::` no log — é rede de segurança, não licença pra apagar.
-    - Opcional (não faz parte do padrão): em repo **público**, branch protection é
-      grátis e `allow_deletions: false` + `enforce_admins: true` tornaria a deleção
-      impossível. Em repo **privado** isso exige GitHub Pro.
-11. **O merge é sempre seu.** A pipeline não mergeia nada — ela só roda CI, bumpa a
-    versão na develop e cria a tag/Release depois que você mergeia o PR de release.
+   bump e para o merge do sync: o commit da versão não gera run de CI (só
+   `package.json`/`package-lock.json` mudam, e ele já passou pelo CI dentro do
+   PR). Vale para qualquer automação futura: um merge bot na `main` não gera run
+   de `push` — nesse caso, disparar via `workflow_dispatch`, que é a exceção
+   prevista na doc.
+9. **Squash em PR pra `develop`** (histórico linear) e **merge commit em PR pra
+   `main`** (commit âncora do release, que a tag aponta).
+10. **A `develop` nunca pode ser apagada — por ninguém** (detalhes na próxima
+    seção).
+11. **O merge é sempre seu.** A pipeline roda CI, bumpa a versão na `develop` e
+    cria tag/Release — nunca mergeia.
 
-## Versionamento
+## Casos especiais
 
-- Patch automático: 1 por ciclo de release, feito na `develop` pelo `bump.yml`.
-- `release:minor` / `release:major`: manual — editar `package.json` no PR ou rodar
-  o `bump.yml` com o input `kind`.
-- O bump nunca rebaixa versão: se a develop já está à frente da última tag, ele
-  não toca em nada.
+- **Hotfix direto na `main`** (sem passar pela `develop`): o `release.yml` roda,
+  mas se a versão não foi bumpada a tag já existe → release ignorado. Se você
+  bumpou no commit, sai release novo; o `sync-develop` então traz a `main` para a
+  `develop`.
+- **Re-run do `release.yml`:** inofensivo pela guarda de tag.
+- **Release manual:** `gh workflow run release.yml --ref main`.
+- **Bump manual (minor/major):** `gh workflow run bump.yml --ref develop -f kind=minor`.
+- **Conflito no sync:** o job `sync-develop` falha; resolver na mão
+  (`develop` ← `main`) e pushar.
 
-## Sem GitHub Pro
+## Configuração do repo (precisa ficar assim)
 
-`branch protection` e `rulesets` exigem Pro (ou repo público) em repositório
-privado — então em repo privado no free o CI é um **aviso**, não um bloqueio: nada
-impede mergear com check vermelho, e o gate é a sua leitura do CI antes de mergear.
-Se um dia quiser enforcement de verdade (required checks), é GitHub Pro (US$4/mês,
-repos privados ilimitados).
+- **`delete_branch_on_merge` = `false`.** Com ele ligado, mergear um PR cujo head
+  é a `develop` — que é justamente o PR de release — **apaga a `develop`
+  inteira**. Aconteceu no primeiro teste: o `release.yml` falhou com
+  `A branch or tag with the name 'develop' could not be found`.
+- **Nunca use `--delete-branch` num PR pra `main`**: a head é a `develop`.
+- **Métodos de merge:** squash ✔, merge commit ✔, rebase ✘ (`allow_rebase_merge:
+  false`).
+- **Default branch:** `main`.
+- **Workflow permissions do repo:** `read` por padrão — o que é seguro, porque
+  cada workflow eleva só o que precisa declarando `permissions:` no próprio YAML
+  (`contents: write` no bump e no release).
+- **Branch protection / rulesets:** hoje **nenhuma** neste repo. Como ele é
+  público, isso é grátis aqui (`allow_deletions: false` + `enforce_admins: true`
+  impediriam a deleção da `develop` por qualquer um); em repo privado exige
+  GitHub Pro.
+
+## Portar para outro repositório
+
+Checklist do que o padrão exige:
+
+- [ ] Os três arquivos em `.github/workflows/` (`ci.yml`, `bump.yml`, `release.yml`).
+- [ ] `package.json` com `version` e scripts `lint`, `build`, `test`, `checks`.
+- [ ] Branches `main` (default) e `develop`; `delete_branch_on_merge: false`.
+- [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.
+- [ ] Nenhum secret: tudo roda com o `GITHUB_TOKEN`.
+- [ ] Se o PaaS builda a cada push na `main`: manter o bump fora da `main`
+      (é o desenho deste repo), senão cada release vira dois builds.
 
 ## Uso local
 
@@ -94,3 +224,11 @@ npm run build
 npm test
 npm run checks
 ```
+
+## Histórico que engana
+
+Runs de workflows que **não existem mais** neste repo continuam aparecendo em
+Actions: `Bump version on PR to main` (o modelo antigo, bump dentro do PR),
+`Merge when green` (auto-merge por label, que no plano free não funcionava) e
+`PR title`. Não são estado vigente — o diretório `.github/workflows/` tem só
+`ci.yml`, `bump.yml` e `release.yml`.

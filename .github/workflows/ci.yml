@@ -9,8 +9,11 @@ on:
   workflow_dispatch:
 
 # Cancelar runs antigas do mesmo PR/branch economiza minutos do plano free.
+# O `event_name` entra no grupo porque push e execução manual na MESMA branch
+# (dois eventos diferentes, mesmo ref) travavam um ao outro em vez de um cancelar
+# o outro — aconteceu com o push do merge + o dispatch do `bump.yml`.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:

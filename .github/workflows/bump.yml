@@ -28,7 +28,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
   group: bump-develop
@@ -56,7 +55,6 @@ jobs:
 
       - name: Bump se necessário
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KIND: ${{ inputs.kind || 'patch' }}
         run: |
           set -euo pipefail
@@ -97,7 +95,3 @@ jobs:
           fi
           git commit -m "chore: bump version to $NEXT_VERSION"
           git push origin develop
-
-          # Push feito com GITHUB_TOKEN não cria run de workflow. workflow_dispatch
-          # é a exceção prevista na doc — então disparamos o CI no commit bumpado.
-          gh workflow run ci.yml --ref develop

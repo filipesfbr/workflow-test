@@ -84,11 +84,10 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
   ao outro em vez de um cancelar o outro.
 - Os `checks/*.check.mjs` são regras de negócio puras (sem banco, sem rede, sem
   servidor) e rodam em segundos.
-- **Hoje o gatilho `workflow_dispatch` não é usado por nenhum workflow**: até o
-  PR #10 o `bump.yml` chamava `gh workflow run ci.yml --ref develop` depois de
-  commitar a versão; isso foi removido (era exatamente ele que causava a corrida
-  entre CIs na mesma branch). O gatilho ficou como ferramenta manual — e o
-  comentário no topo do arquivo ainda descreve o uso antigo.
+- **O gatilho `workflow_dispatch` é ferramenta manual** (re-rodar o CI sem
+  precisar de um push). Até o PR #10 o `bump.yml` chamava
+  `gh workflow run ci.yml --ref develop` depois de commitar a versão; a chamada
+  foi removida — era ela que causava a corrida entre os dois CIs da mesma branch.
 
 ### `bump.yml` — a versão na `develop`
 
@@ -198,22 +197,37 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Workflow permissions do repo:** `read` por padrão — o que é seguro, porque
   cada workflow eleva só o que precisa declarando `permissions:` no próprio YAML
   (`contents: write` no bump e no release).
-- **Branch protection / rulesets:** hoje **nenhuma** neste repo. Como ele é
-  público, isso é grátis aqui (`allow_deletions: false` + `enforce_admins: true`
-  impediriam a deleção da `develop` por qualquer um); em repo privado exige
-  GitHub Pro.
+- **Branch protection:** `main` tem o ruleset `protege-main` (repo público, logo
+  grátis): exige PR antes do merge, exige o check `ci` verde, bloqueia force push
+  e bloqueia deleção. Sobra `bypass` para admin, para emergência.
+- **A `develop` não pode ter proteção que exija PR**: o `bump.yml` e o job
+  `sync-develop` pusham direto nela. Proteção ali tem que se limitar a
+  `non_fast_forward` (bloquear force push) — exigir PR quebra o pipeline.
+- Em repo privado no plano free, nada disso é possível: `rulesets` exigem Pro.
 
 ## Portar para outro repositório
 
 Checklist do que o padrão exige:
 
-- [ ] Os três arquivos em `.github/workflows/` (`ci.yml`, `bump.yml`, `release.yml`).
+- [ ] Os arquivos de `.github/`: `workflows/{ci,bump,release}.yml`, `dependabot.yml`
+      e `pull_request_template.md`.
+- [ ] `AGENTS.md` no repo de destino, apontando para este padrão.
 - [ ] `package.json` com `version` e scripts `lint`, `build`, `test`, `checks`.
 - [ ] Branches `main` (default) e `develop`; `delete_branch_on_merge: false`.
 - [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.
 - [ ] Nenhum secret: tudo roda com o `GITHUB_TOKEN`.
 - [ ] Se o PaaS builda a cada push na `main`: manter o bump fora da `main`
       (é o desenho deste repo), senão cada release vira dois builds.
+
+## Actions e manutenção
+
+- Referências usadas: `actions/checkout@v7`, `actions/setup-node@v7` e
+  `softprops/action-gh-release@v3`.
+- Pela **major** (`@v7`), não por SHA: é um template didático e o Dependabot cuida
+  dos minors/patches. Em repo sensível, pinar por SHA é o recomendado.
+- `.github/dependabot.yml`: `github-actions` semanal e `npm` mensal, ambos com
+  `target-branch: develop` — PR de dependência entra pelo mesmo fluxo, nunca
+  direto na `main`.
 
 ## Uso local
 

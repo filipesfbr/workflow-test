@@ -4,9 +4,8 @@ name: Bump version on develop
 #
 # Motivo: quando um workflow empurra um commit na branch de um PR usando o
 # GITHUB_TOKEN, o GitHub passa a exigir aprovação manual ("Approve and run") para
-# os workflows daquele PR. Isso travava o PR de release e impedia o auto-merge de
-# funcionar (o bot só mergeia com CI verde no commit atual, e o bump mudava o
-# commit). Empurrando na develop, antes de existir o PR de release, o problema
+# os workflows daquele PR (o PR de release ficaria com checks pendentes esperando
+# aprovação). Empurrando na develop, antes de existir o PR de release, o problema
 # não acontece.
 #
 # Regra: só bumpa quando a versão da develop é IGUAL à última tag — ou seja,

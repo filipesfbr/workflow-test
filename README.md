@@ -46,9 +46,11 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
 7. **Checks de regra de negócio não precisam de banco.** `checks/*.check.mjs` roda
    em segundos e é o que trava regressão de regra com valor legal.
 8. **Push feito com `GITHUB_TOKEN` não dispara workflow.** Vale para o commit do
-   bump e para o sync. `workflow_dispatch` é a exceção — é o que o `bump.yml` usa
-   para rodar o CI no commit da versão. Vale saber também para qualquer automação
-   futura: um merge feito por automação não gera run de `push` em `main`.
+   bump e para o sync: o commit da versão não gera run de CI (só `package.json` e
+   `package-lock.json` mudam). Vale saber também para qualquer automação futura:
+   um merge feito por automação não gera run de `push` em `main` — se um dia isso
+   existir, precisa disparar via `workflow_dispatch`, que é a exceção prevista na
+   doc.
 9. **Squash em PR pra `develop`** (develop linear, 1 commit por PR, título vira a
    mensagem) e **merge commit em PR pra `main`** (commit-âncora do release, que a
    tag aponta).

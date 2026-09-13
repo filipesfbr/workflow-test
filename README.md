@@ -197,13 +197,19 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Workflow permissions do repo:** `read` por padrão — o que é seguro, porque
   cada workflow eleva só o que precisa declarando `permissions:` no próprio YAML
   (`contents: write` no bump e no release).
-- **Branch protection:** `main` tem o ruleset `protege-main` (repo público, logo
-  grátis): exige PR antes do merge, exige o check `ci` verde, bloqueia force push
-  e bloqueia deleção. Sobra `bypass` para admin, para emergência.
-- **A `develop` não pode ter proteção que exija PR**: o `bump.yml` e o job
-  `sync-develop` pusham direto nela. Proteção ali tem que se limitar a
-  `non_fast_forward` (bloquear force push) — exigir PR quebra o pipeline.
-- Em repo privado no plano free, nada disso é possível: `rulesets` exigem Pro.
+- **Rulesets** (repo público, então é grátis):
+  - `protege-main`: exige PR antes do merge (0 aprovações), exige o check `ci`
+    verde, bloqueia force push e bloqueia deleção.
+  - `protege-develop`: bloqueia **apenas** force push e deleção. Ela **não pode
+    exigir PR** — o `bump.yml` e o job `sync-develop` pusham direto nela; exigir
+    PR ali quebra o pipeline.
+  - Os dois têm `bypass` para o papel admin, para emergência (merge/push mesmo
+    com a regra violada). Um clique no ruleset desativa.
+- Em repo privado no plano free nada disso é possível: `rulesets` exigem Pro.
+
+Push direto na `develop` (feito pelo `bump.yml`, pelo sync e por commits manuais
+como este) continua passando com o `protege-develop`, porque nenhuma das duas
+regras dele barra push normal — só force push e deleção.
 
 ## Portar para outro repositório
 
@@ -214,6 +220,8 @@ Checklist do que o padrão exige:
 - [ ] `AGENTS.md` no repo de destino, apontando para este padrão.
 - [ ] `package.json` com `version` e scripts `lint`, `build`, `test`, `checks`.
 - [ ] Branches `main` (default) e `develop`; `delete_branch_on_merge: false`.
+- [ ] Rulesets: `main` exigindo PR + check `ci`; `develop` só com force push e
+      deleção bloqueados (nunca exigindo PR).
 - [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.
 - [ ] Nenhum secret: tudo roda com o `GITHUB_TOKEN`.
 - [ ] Se o PaaS builda a cada push na `main`: manter o bump fora da `main`

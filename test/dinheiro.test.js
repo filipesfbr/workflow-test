@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { formatarBRL, paraCentavos, somar, valorPorExtenso } from '../dist/index.js';
+import { dividir, formatarBRL, paraCentavos, somar, valorPorExtenso } from '../dist/index.js';
 
 describe('somar', () => {
   it('soma centavos inteiros sem erro de ponto flutuante', () => {
@@ -15,6 +15,27 @@ describe('somar', () => {
 
   it('recusa valor negativo', () => {
     assert.throws(() => somar([-1]), /negativo/);
+  });
+});
+
+describe('dividir', () => {
+  it('divide sem perder centavo, jogando o resto nas primeiras partes', () => {
+    assert.deepEqual(dividir(1000, 3), [334, 333, 333]);
+    assert.deepEqual(dividir(10, 4), [3, 3, 2, 2]);
+    assert.deepEqual(dividir(0, 2), [0, 0]);
+  });
+
+  it('mantém a invariante: a soma das partes é o total', () => {
+    for (const total of [1, 7, 999, 100000, 1234567]) {
+      for (const partes of [1, 2, 3, 7, 13]) {
+        assert.equal(somar(dividir(total, partes)), total);
+      }
+    }
+  });
+
+  it('recusa número de partes inválido', () => {
+    assert.throws(() => dividir(100, 0), /Partes deve ser inteiro positivo/);
+    assert.throws(() => dividir(100, 2.5), /Partes deve ser inteiro positivo/);
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * Check de arredondamento: o bug clássico é somar em float e perder centavo.
  */
-import { formatarBRL, paraCentavos, somar } from '../dist/index.js';
+import { dividir, formatarBRL, paraCentavos, somar } from '../dist/index.js';
 
 const CASOS = [
   { parcelas: [10, 20], total: 30 },
@@ -37,7 +37,25 @@ for (const [entrada, esperado] of PARSES) {
   console.log(`${ok ? 'ok  ' : 'FALHA'} paraCentavos("${entrada}") = ${obtido}`);
 }
 
-console.log(`\n${CASOS.length + PARSES.length - falhas}/${CASOS.length + PARSES.length} casos ok`);
+const RATEIOS = [
+  [1000, 3],
+  [10, 4],
+  [999, 7],
+  [1234567, 13],
+];
+
+for (const [total, partes] of RATEIOS) {
+  const partesCalculadas = dividir(total, partes);
+  const somaDasPartes = somar(partesCalculadas);
+  const ok = somaDasPartes === total && partesCalculadas.length === partes;
+  if (!ok) falhas += 1;
+  console.log(
+    `${ok ? 'ok  ' : 'FALHA'} dividir(${total}, ${partes}) = [${partesCalculadas.join(', ')}] soma=${somaDasPartes}`,
+  );
+}
+
+const TOTAL_CASOS = CASOS.length + PARSES.length + RATEIOS.length;
+console.log(`\n${TOTAL_CASOS - falhas}/${TOTAL_CASOS} casos ok`);
 if (falhas > 0) {
   console.error(`${falhas} caso(s) falharam`);
   process.exit(1);

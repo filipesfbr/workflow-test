@@ -10,4 +10,5 @@
 
 - [ ] Nenhum secret/credencial no diff
 - [ ] Teste cobrindo a mudança (ou justificativa de por que não precisa)
-- [ ] PR pra `main`: preciso de `release:minor` / `release:major`? (sem label = patch, decidido na abertura do PR)
+- [ ] PR pra `main` (release): a versão em `develop` já é a que deve sair? Para
+      minor/major, rode o `bump.yml` com `kind` antes de abrir

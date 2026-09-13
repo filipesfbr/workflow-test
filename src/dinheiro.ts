@@ -54,3 +54,19 @@ export function paraCentavos(entrada: string): number {
 
   return exigirCentavos(reais * 100 + centavos);
 }
+
+/**
+ * Divide um valor em N partes sem perder centavo: o resto da divisão vai para
+ * as primeiras partes. Invariante garantida (e checada no CI): somar(dividir(x, n)) === x.
+ */
+export function dividir(totalCentavos: number, partes: number): number[] {
+  exigirCentavos(totalCentavos);
+  if (!Number.isInteger(partes) || partes <= 0) {
+    throw new Error(`Partes deve ser inteiro positivo, recebido: ${partes}`);
+  }
+
+  const base = Math.floor(totalCentavos / partes);
+  const resto = totalCentavos - base * partes;
+
+  return Array.from({ length: partes }, (_, i) => base + (i < resto ? 1 : 0));
+}

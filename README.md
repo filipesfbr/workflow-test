@@ -19,9 +19,7 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
 | --- | --- | --- |
 | `ci.yml` | push em `main`/`develop`, qualquer PR e `workflow_dispatch` | `npm ci` → lint → build → test → checks |
 | `bump.yml` | push em `develop` (+ `workflow_dispatch` com `kind`) | bumpa a versão quando a develop está igual à última tag (1 por ciclo) |
-| `release.yml` | push em `main` (e `workflow_dispatch`) | cria tag `vX.Y.Z` + Release, depois sincroniza `develop` |
-| `merge-when-green.yml` | conclusão do CI | mergeia o PR marcado com a label `merge` |
-| `pr-title.yml` | PR aberto/editado | exige título em Conventional Commits |
+| `release.yml` | push em `main` (e `workflow_dispatch`) | cria tag `vX.Y.Z` + Release, depois sincroniza `develop` (recriando-a se não existir) |
 
 ## Regras (o porquê)
 
@@ -30,8 +28,9 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
    `.git`), então a versão precisa estar no commit — mas **não** pode ser
    empurrada na branch de um PR: quando um workflow empurra um commit na branch
    de um PR com o `GITHUB_TOKEN`, o GitHub passa a exigir aprovação manual
-   ("Approve and run") para os workflows daquele PR. Isso travava o PR de release
-   e quebrava o auto-merge. Por isso o bump vive na `develop`.
+   ("Approve and run") para os workflows daquele PR — o PR de release ficaria com os
+   checks pendentes, e com branch protection o merge travaria. Por isso o bump vive
+   na `develop`.
 2. **1 bump por ciclo de release.** O workflow só mexe quando a versão da develop
    é igual à última tag. Depois do release (`main` → tag → sync `develop`), o
    primeiro merge na develop bumpa; os demais merges não fazem nada.
@@ -47,12 +46,26 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
 7. **Checks de regra de negócio não precisam de banco.** `checks/*.check.mjs` roda
    em segundos e é o que trava regressão de regra com valor legal.
 8. **Push feito com `GITHUB_TOKEN` não dispara workflow.** Vale para o commit do
-   bump e para o sync. `workflow_dispatch` é a exceção — o `bump.yml` usa isso
-   para rodar o CI no commit da versão, e o bot de auto-merge para disparar o
-   release depois de um merge feito por ele.
+   bump e para o sync. `workflow_dispatch` é a exceção — é o que o `bump.yml` usa
+   para rodar o CI no commit da versão. Vale saber também para qualquer automação
+   futura: um merge feito por automação não gera run de `push` em `main`.
 9. **Squash em PR pra `develop`** (develop linear, 1 commit por PR, título vira a
    mensagem) e **merge commit em PR pra `main`** (commit-âncora do release, que a
    tag aponta).
+10. **A `develop` nunca pode ser apagada — por ninguém.** Na prática:
+    - `delete_branch_on_merge` fica **`false`** no repo. Com ele ligado, mergear um
+      PR cujo head é a `develop` — que é justamente o PR de release — apaga a
+      develop inteira. Aconteceu no primeiro teste deste repo: o `release.yml`
+      falhou com `A branch or tag with the name 'develop' could not be found`.
+    - Nunca use `--delete-branch` num PR pra `main`: a head é a `develop`. Apagar a
+      "branch do PR" nesse caso apaga a develop inteira.
+    - O `release.yml` recria a `develop` a partir de `main` se ela não existir, com
+      `::warning::` no log — é rede de segurança, não licença pra apagar.
+    - Opcional (não faz parte do padrão): em repo **público**, branch protection é
+      grátis e `allow_deletions: false` + `enforce_admins: true` tornaria a deleção
+      impossível. Em repo **privado** isso exige GitHub Pro.
+11. **O merge é sempre seu.** A pipeline não mergeia nada — ela só roda CI, bumpa a
+    versão na develop e cria a tag/Release depois que você mergeia o PR de release.
 
 ## Versionamento
 
@@ -62,11 +75,13 @@ feat/slug ──PR──▶ develop ──PR "release: vX.Y.Z"──▶ main ─
 - O bump nunca rebaixa versão: se a develop já está à frente da última tag, ele
   não toca em nada.
 
-## Auto-merge sem GitHub Pro
+## Sem GitHub Pro
 
 `branch protection` e `rulesets` exigem Pro (ou repo público) em repositório
-privado. No free, o `merge-when-green.yml` faz o papel de "required check":
-o CI passa + label `merge` no PR = merge automático.
+privado — então em repo privado no free o CI é um **aviso**, não um bloqueio: nada
+impede mergear com check vermelho, e o gate é a sua leitura do CI antes de mergear.
+Se um dia quiser enforcement de verdade (required checks), é GitHub Pro (US$4/mês,
+repos privados ilimitados).
 
 ## Uso local
 

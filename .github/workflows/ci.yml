@@ -4,6 +4,9 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  # Usado pelo bump.yml depois de commitar a versão na develop: push feito com
+  # GITHUB_TOKEN não cria run de workflow, mas workflow_dispatch é a exceção.
+  workflow_dispatch:
 
 # Cancelar runs antigas do mesmo PR/branch economiza minutos do plano free.
 concurrency:

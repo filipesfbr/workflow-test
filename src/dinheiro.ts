@@ -34,3 +34,23 @@ export function formatarBRL(centavos: number): string {
     currency: 'BRL',
   }).format(centavos / 100);
 }
+
+const PADRAO_BRL = /^\d{1,3}(\.\d{3})*(,\d{1,2})?$|^\d+(,\d{1,2})?$/;
+
+/**
+ * Converte valor digitado no padrão pt-BR ("R$ 1.234,56", "40,99", "1.234")
+ * para centavos inteiros. Ponto é SEMPRE separador de milhar — "40.99" é
+ * rejeitado de propósito, porque é ambíguo (o Filipe dita "40 com 99" = 40,99).
+ */
+export function paraCentavos(entrada: string): number {
+  const limpo = entrada.trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');
+  if (limpo === '' || !PADRAO_BRL.test(limpo)) {
+    throw new Error(`Valor inválido: "${entrada}" (esperado algo como "1.234,56")`);
+  }
+
+  const [reaisTexto = '0', centavosTexto = ''] = limpo.replace(/\./g, '').split(',');
+  const reais = Number(reaisTexto);
+  const centavos = centavosTexto === '' ? 0 : Number(centavosTexto.padEnd(2, '0'));
+
+  return exigirCentavos(reais * 100 + centavos);
+}

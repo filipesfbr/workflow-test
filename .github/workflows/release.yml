@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: main
           fetch-depth: 0
 
       - name: Configurar git
@@ -73,13 +73,27 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge main -> develop
+      - name: Sincronizar main -> develop
+        # O checkout não pode apontar direto pra develop: se a branch não existir
+        # (foi apagada ao mergear o PR de release, por exemplo), o job morre antes
+        # de conseguir recriá-la. Por isso checamos e recriamos aqui dentro.
         run: |
-          git fetch origin main
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+
+          if ! git ls-remote --exit-code --heads origin develop >/dev/null 2>&1; then
+            echo "::warning::A branch develop não existe — recriando a partir de main"
+            git push origin refs/remotes/origin/main:refs/heads/develop
+            exit 0
+          fi
+
+          git checkout -B develop origin/develop
+
           if git merge-base --is-ancestor origin/main HEAD; then
             echo "develop já contém main — nada a fazer"
             exit 0
           fi
+
           # Conflito aqui NÃO é resolvido no automático: o job falha e avisa.
           git merge origin/main --no-edit -m "chore: sync main into develop"
           git push origin develop

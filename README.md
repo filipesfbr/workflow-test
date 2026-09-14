@@ -113,6 +113,11 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
     workflow respeita — ou não faz nada, ou sobe a partir dela.
   - **Se a `develop` ficou atrás** da última tag (ex.: `0.1.0` com tag `v0.1.4`),
     o próximo push a traz direto para `0.1.5`.
+- **A base é a maior tag no formato `vX.Y.Z`** (`git tag --sort=-v:refname` +
+  filtro do formato), não a tag mais próxima do histórico. Tag com sufixo
+  (`v1.2.0-beta.1`) era usada como base e fazia o parser gerar `1.2.NaN`, que o
+  `npm version` rejeita — o job **falhava**. Com o filtro, ela é simplesmente
+  ignorada.
 - **Minor/major é decisão humana**, por dois caminhos: editar o `package.json` no
   PR (o workflow respeita) ou rodar o workflow na mão com `kind`.
 - **Por que na `develop` e não no PR de release:** quando um workflow empurra um
@@ -192,6 +197,13 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Recriar a `develop` descarta commits exclusivos dela.** O sync recria a partir da
   `main`, então qualquer commit que só existisse na `develop` se perde no momento da
   recriação — é o preço da rede de segurança, não um bug.
+- **PR de release aberto ANTES do bump terminar → `action_required`.** O push do
+  merge na `develop` dispara o `bump.yml`, que commita segundos depois. Se o PR
+  `develop → main` for aberto nesse intervalo, o head do PR passa a ser o commit
+  **do bot** e o GitHub põe os workflows de `pull_request` daquele PR em
+  "Approve and run" — o check `ci` nunca reporta e o PR fica `blocked` (com o
+  required check, para sempre). Esperar o bump terminar antes de abrir o PR de
+  release; ou aprovar o run pendente (`POST /actions/runs/<id>/approve`).
 - **Push direto na `main`** funciona para admin (bypass) e é o caminho do hotfix:
   com bump no commit sai release novo; sem bump, o release vê a tag existente e
   ignora.
@@ -241,6 +253,11 @@ Checklist do que o padrão exige:
 - [ ] `AGENTS.md` no repo de destino, apontando para este padrão.
 - [ ] `package.json` com `version` e scripts `lint`, `build`, `test`, `checks`.
 - [ ] Branches `main` (default) e `develop`; `delete_branch_on_merge: false`.
+      ⚠️ **Empurre a `main` primeiro**: a primeira branch que chega num repo vazio
+      vira a *default branch*. Empurrando a `develop` antes, ela vira a default —
+      e aí não pode ser deletada (nem pelo sync, para testar), o ruleset
+      `protege-main` não governa a branch certa e qualquer ferramenta que leia a
+      default (Dependabot, por exemplo) olha pra branch errada.
 - [ ] Rulesets: `main` exigindo PR + check `ci`; `develop` só com force push e
       deleção bloqueados (nunca exigindo PR).
 - [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.

@@ -217,30 +217,30 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
   inteira**. Aconteceu no primeiro teste: o `release.yml` falhou com
   `A branch or tag with the name 'develop' could not be found`.
 - **Nunca use `--delete-branch` num PR pra `main`**: a head é a `develop`.
-- **Métodos de merge:** squash ✔, merge commit ✔, rebase ✘ (`allow_rebase_merge:
-  false`).
+- **Métodos de merge:** squash ✔ (pra `develop`), merge commit ✔ (pra `main`),
+  rebase ✘ (`allow_rebase_merge: false`). Na `main`, o ruleset trava em **só
+  `merge`** (`allowed_merge_methods: [merge]`) — o commit âncora do release é
+  garantido pelo ruleset, não uma convenção.
 - **Default branch:** `main`.
 - **Workflow permissions do repo:** `read` por padrão — o que é seguro, porque
   cada workflow eleva só o que precisa declarando `permissions:` no próprio YAML
   (`contents: write` no bump e no release).
 - **Rulesets** (repo público, então é grátis):
-  - `protege-main`: exige PR antes do merge (0 aprovações), exige o check `ci`
-    verde, bloqueia force push e bloqueia deleção.
-  - `protege-develop`: bloqueia **apenas** force push e deleção. Ela **não pode
-    exigir PR** — o `bump.yml` e o job `sync-develop` pusham direto nela; exigir
-    PR ali quebra o pipeline.
-  - Os dois têm `bypass` para o papel admin, para emergência (merge/push mesmo
-    com a regra violada). Um clique no ruleset desativa.
+  - `protege-main`: exige PR antes do merge (0 aprovações) **só por merge commit**
+    (`allowed_merge_methods: [merge]`), exige o check `ci` verde, bloqueia force
+    push e bloqueia deleção. Tem `bypass` de admin — é o que permite o **hotfix
+    direto na `main`**.
+  - `protege-develop`: bloqueia force push e deleção, **sem `bypass` nenhum** — nem
+    admin apaga ou reescreve a `develop` (testado: force push retorna `GH013
+    Cannot force-push to this branch` e o DELETE não passa). Ela **não pode exigir
+    PR**: o `bump.yml` e o job `sync-develop` pusham direto nela.
 - Em repo privado no plano free nada disso é possível: `rulesets` exigem Pro.
-- ⚠️ **O `bypass` de admin vale para TODAS as regras, não só para a de PR.** Testado
-  neste repo: force push na `main` e na `develop` **passaram**, e o
-  `DELETE /git/refs/heads/develop` **apagou a `develop`** — com o GitHub imprimindo
-  `Bypassed rule violations for refs/heads/main: Cannot force-push to this branch /
-  Changes must be made through a pull request`. Tradução: o ruleset protege contra
-  acidente na UI e contra quem não é admin; **não** protege contra a própria
-  automação com token de admin (inclusive a sua). Se quiser proteção real contra
-  deleção/force push, tire o `bypass` — e aceite que aí nem você destrava pela UI
-  sem editar o ruleset.
+- ⚠️ **`bypass` de admin vale para TODAS as regras do ruleset em que está.** Com
+  `bypass` na `main`, push direto, force push e deleção passam por cima das regras
+  (deleção da default branch o GitHub barra de qualquer jeito). Por isso a
+  `develop` ficou **sem** bypass — é a branch que não pode sumir. A `main` mantém
+  o bypass só pelo hotfix direto; se um dia quiser ela também blindada, tire o
+  bypass dela (o hotfix passa a ser um PR normal).
 
 Push direto na `develop` (feito pelo `bump.yml`, pelo sync e por commits manuais
 como este) continua passando com o `protege-develop`, porque nenhuma das duas
@@ -250,8 +250,8 @@ regras dele barra push normal — só force push e deleção.
 
 Checklist do que o padrão exige:
 
-- [ ] Os arquivos de `.github/`: `workflows/{ci,bump,release}.yml`, `dependabot.yml`
-      e `pull_request_template.md`.
+- [ ] Os arquivos de `.github/`: `workflows/{ci,bump,release}.yml` e
+      `pull_request_template.md`.
 - [ ] `AGENTS.md` no repo de destino, apontando para este padrão.
 - [ ] `package.json` com `version` e scripts `lint`, `build`, `test`, `checks`.
 - [ ] Branches `main` (default) e `develop`; `delete_branch_on_merge: false`.
@@ -260,8 +260,8 @@ Checklist do que o padrão exige:
       e aí não pode ser deletada (nem pelo sync, para testar), o ruleset
       `protege-main` não governa a branch certa e qualquer ferramenta que leia a
       default (Dependabot, por exemplo) olha pra branch errada.
-- [ ] Rulesets: `main` exigindo PR + check `ci`; `develop` só com force push e
-      deleção bloqueados (nunca exigindo PR).
+- [ ] Rulesets: `main` com PR (só merge commit) + check `ci` + bypass admin;
+      `develop` com force push/deleção bloqueados, **sem** bypass (nunca exigir PR).
 - [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.
 - [ ] Nenhum secret: tudo roda com o `GITHUB_TOKEN`.
 - [ ] Se o PaaS builda a cada push na `main`: manter o bump fora da `main`

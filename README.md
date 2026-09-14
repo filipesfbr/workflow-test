@@ -181,8 +181,20 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Re-run do `release.yml`:** inofensivo pela guarda de tag.
 - **Release manual:** `gh workflow run release.yml --ref main`.
 - **Bump manual (minor/major):** `gh workflow run bump.yml --ref develop -f kind=minor`.
-- **Conflito no sync:** o job `sync-develop` falha; resolver na mão
-  (`develop` ← `main`) e pushar.
+- **Conflito no sync:** o job `sync-develop` falha (`CONFLICT (add/add)` / `Automatic
+  merge failed`) e a `develop` fica **intacta** — resolver na mão (`develop` ← `main`)
+  e pushar. Testado.
+- **`develop` apagada:** o `release.yml` recria a partir da `main` com `::warning::`,
+  e o push da recriação dispara o `bump.yml` — a `develop` volta uma versão à frente
+  da `main`. O `bump.yml`, porém, **não** trata branch ausente: se a `develop` sumir
+  entre o push e o checkout, ele falha com
+  `A branch or tag with the name 'develop' could not be found`.
+- **Recriar a `develop` descarta commits exclusivos dela.** O sync recria a partir da
+  `main`, então qualquer commit que só existisse na `develop` se perde no momento da
+  recriação — é o preço da rede de segurança, não um bug.
+- **Push direto na `main`** funciona para admin (bypass) e é o caminho do hotfix:
+  com bump no commit sai release novo; sem bump, o release vê a tag existente e
+  ignora.
 
 ## Configuração do repo (precisa ficar assim)
 
@@ -206,6 +218,15 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
   - Os dois têm `bypass` para o papel admin, para emergência (merge/push mesmo
     com a regra violada). Um clique no ruleset desativa.
 - Em repo privado no plano free nada disso é possível: `rulesets` exigem Pro.
+- ⚠️ **O `bypass` de admin vale para TODAS as regras, não só para a de PR.** Testado
+  neste repo: force push na `main` e na `develop` **passaram**, e o
+  `DELETE /git/refs/heads/develop` **apagou a `develop`** — com o GitHub imprimindo
+  `Bypassed rule violations for refs/heads/main: Cannot force-push to this branch /
+  Changes must be made through a pull request`. Tradução: o ruleset protege contra
+  acidente na UI e contra quem não é admin; **não** protege contra a própria
+  automação com token de admin (inclusive a sua). Se quiser proteção real contra
+  deleção/force push, tire o `bypass` — e aceite que aí nem você destrava pela UI
+  sem editar o ruleset.
 
 Push direto na `develop` (feito pelo `bump.yml`, pelo sync e por commits manuais
 como este) continua passando com o `protege-develop`, porque nenhuma das duas

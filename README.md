@@ -197,13 +197,15 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Recriar a `develop` descarta commits exclusivos dela.** O sync recria a partir da
   `main`, então qualquer commit que só existisse na `develop` se perde no momento da
   recriação — é o preço da rede de segurança, não um bug.
-- **PR de release aberto ANTES do bump terminar → `action_required`.** O push do
+- **Bump commitando com o PR de release já aberto → `action_required`.** O push do
   merge na `develop` dispara o `bump.yml`, que commita segundos depois. Se o PR
-  `develop → main` for aberto nesse intervalo, o head do PR passa a ser o commit
-  **do bot** e o GitHub põe os workflows de `pull_request` daquele PR em
-  "Approve and run" — o check `ci` nunca reporta e o PR fica `blocked` (com o
-  required check, para sempre). Esperar o bump terminar antes de abrir o PR de
-  release; ou aprovar o run pendente (`POST /actions/runs/<id>/approve`).
+  `develop → main` **já existir** nessa hora, o push do bot gera um `synchronize` no
+  PR, o head passa a ser o commit **do bot** e o GitHub põe os workflows de
+  `pull_request` daquele PR em "Approve and run": o check `ci` nunca reporta e o PR
+  fica `blocked` (com required check, para sempre).
+  **Abrir o PR depois do bump terminar resolve** — testado: o CI roda normal e o
+  estado fica `clean`. Se já caiu nisso, destravar com
+  `POST /repos/{owner}/{repo}/actions/runs/<id>/approve`.
 - **Push direto na `main`** funciona para admin (bypass) e é o caminho do hotfix:
   com bump no commit sai release novo; sem bump, o release vê a tag existente e
   ignora.

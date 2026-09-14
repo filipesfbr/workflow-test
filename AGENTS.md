@@ -11,7 +11,7 @@ Use-o como fonte da verdade ao padronizar/adequar outro repositório.
 - **Leia o `README.md` antes de propor qualquer mudança de fluxo** — ele mapeia
   evento por evento, com as guardas e o porquê de cada decisão.
 - Os arquivos a copiar são `.github/workflows/{ci,bump,release}.yml` (+
-  `.github/dependabot.yml` e `.github/pull_request_template.md`).
+  `.github/pull_request_template.md`).
 - Checklist de adaptação por repo de destino: README § *Portar para outro
   repositório*.
 - **Não simplifique as guardas sem entender o que elas seguram:**

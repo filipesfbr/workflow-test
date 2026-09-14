@@ -60,7 +60,12 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
 
-          LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          # So tags no formato vX.Y.Z contam: tag com sufixo (v1.2.0-beta.1) fazia o
+          # parser gerar "1.2.NaN" e o `npm version` falhar. A maior versao valida
+          # ganha, nao a tag mais proxima do historico.
+          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | head -1 || true)
           BASE_VERSION=${LATEST_TAG#v}
           BASE_VERSION=${BASE_VERSION:-0.0.0}
           HEAD_VERSION=$(node -p "require('./package.json').version")

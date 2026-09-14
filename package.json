@@ -1,6 +1,6 @@
 {
   "name": "workflow-test",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "Repositório de teste do pipeline padrão: CI → bump no PR → release por tag → sync main→develop",

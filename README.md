@@ -188,14 +188,19 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Conflito no sync:** o job `sync-develop` falha (`CONFLICT (add/add)` / `Automatic
   merge failed`) e a `develop` fica **intacta** — resolver na mão (`develop` ← `main`)
   e pushar. Testado.
-- **`develop` apagada:** o `release.yml` recria a partir da `main` com `::warning::`,
-  e o push da recriação dispara o `bump.yml` — a `develop` volta uma versão à frente
-  da `main`. O `bump.yml`, porém, **não** trata branch ausente: se a `develop` sumir
-  entre o push e o checkout, ele falha com
+- **`develop` apagada:** o `release.yml` recria a partir da `main` com `::warning::`.
+  ⚠️ **O push da recriação não dispara o `bump.yml`** — é push de `GITHUB_TOKEN`, que
+  não gera evento de workflow (regra 8). A `develop` volta na versão da `main` e só
+  bumpa no próximo push humano. O `bump.yml`, porém, **não** trata branch ausente: se a
+  `develop` sumir entre o push e o checkout, ele falha com
   `A branch or tag with the name 'develop' could not be found`.
-- **Recriar a `develop` descarta commits exclusivos dela.** O sync recria a partir da
-  `main`, então qualquer commit que só existisse na `develop` se perde no momento da
-  recriação — é o preço da rede de segurança, não um bug.
+- **Recriar a `develop` descarta o que só existia nela.** O sync recria a partir da
+  `main`, então commits exclusivos se perdem **e todo arquivo que só existia na
+  `develop` volta ao estado da `main`** — inclusive `.github/workflows/`. Como o
+  workflow de `push` roda o arquivo do commit empurrado, um fix que só estava na
+  `develop` é revertido silenciosamente (aconteceu na bateria: a recriação trouxe de
+  volta o `bump.yml` antigo, sem o filtro de tag `vX.Y.Z`). É o preço da rede de
+  segurança, não um bug.
 - **Bump commitando com o PR de release já aberto → `action_required`.** O push do
   merge na `develop` dispara o `bump.yml`, que commita segundos depois. Se o PR
   `develop → main` **já existir** nessa hora, o push do bot gera um `synchronize` no

@@ -83,3 +83,4 @@ export function dividir(totalCentavos: number, partes: number): number[] {
   return Array.from({ length: partes }, (_, i) => base + (i < resto ? 1 : 0));
 }
 // linha 1 130038
+// linha 2 130049

@@ -28,6 +28,7 @@ const CASOS = [
   [100000000, 'um milhão de reais'],
   [100500000, 'um milhão e cinco mil reais'],
   [1000001, 'dez mil reais e um centavo'],
+  [250000, 'dois mil e quinhentos reais'],
 ];
 
 let falhas = 0;

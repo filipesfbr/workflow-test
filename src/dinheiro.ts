@@ -40,7 +40,7 @@ const PADRAO_BRL = /^\d{1,3}(\.\d{3})*(,\d{1,2})?$|^\d+(,\d{1,2})?$/;
 /**
  * Converte valor digitado no padrão pt-BR ("R$ 1.234,56", "40,99", "1.234")
  * para centavos inteiros. Ponto é SEMPRE separador de milhar — "40.99" é
- * rejeitado de propósito, porque é ambíguo (o Filipe dita "40 com 99" = 40,99).
+ * rejeitado de propósito, porque é ambíguo (ditado "40 com 99" vira 40,99).
  */
 export function paraCentavos(entrada: string): number {
   const limpo = entrada.trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');

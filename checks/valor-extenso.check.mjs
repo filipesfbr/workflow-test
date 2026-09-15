@@ -20,6 +20,7 @@ const CASOS = [
   [100050, 'mil reais e cinquenta centavos'],
   [150000, 'mil e quinhentos reais'],
   [200000, 'dois mil reais'],
+  [234567, 'dois mil, trezentos e quarenta e cinco reais e sessenta e sete centavos'],
   [120000, 'mil e duzentos reais'],
   [123400, 'mil, duzentos e trinta e quatro reais'],
   [1234567, 'doze mil, trezentos e quarenta e cinco reais e sessenta e sete centavos'],

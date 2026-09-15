@@ -1,10 +1,9 @@
 # workflow-test
 
-Bancada do **pipeline padrão** dos projetos do Filipe (cofre-ai, romulo-seguros,
-erpstratos, pessoais). O código em `src/dinheiro.ts` existe só para dar lint,
-build, test e checks de verdade para a pipeline rodar — o que este repositório
-valida é o **fluxo**: branches, bump de versão, release por tag e sync
-`main → develop`.
+Bancada do **pipeline padrão** de projetos pessoais. O código em `src/dinheiro.ts`
+existe só para dar lint, build, test e checks de verdade para a pipeline rodar — o
+que este repositório valida é o **fluxo**: branches, bump de versão, release por
+tag e sync `main → develop`.
 
 Este README é o mapa exato do que está ligado hoje: cada evento, cada workflow,
 o que escreve onde e com qual guarda.
@@ -159,7 +158,7 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 2. **1 bump por ciclo de release** (regra do `bump.yml`, detalhada acima).
 3. **Minor/major é decisão humana**, não heurística de commit.
 4. **O release nunca escreve na `main`** e é idempotente por checagem de tag.
-5. **Deploy ≠ release.** Deploy é o Easypanel buildando o push na `main`. Release
+5. **Deploy ≠ release.** Deploy é o PaaS buildando o push na `main`. Release
    é a tag + notas: rastro, auditoria e rollback.
 6. **O CI roda o mesmo comando que você roda local**, e falha em vez de consertar.
 7. **Checks de regra de negócio não precisam de banco** — é o que trava regressão
@@ -219,13 +218,20 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Nunca use `--delete-branch` num PR pra `main`**: a head é a `develop`.
 - **Métodos de merge:** squash ✔ (pra `develop`), merge commit ✔ (pra `main`),
   rebase ✘ (`allow_rebase_merge: false`). Na `main`, o ruleset trava em **só
-  `merge`** (`allowed_merge_methods: [merge]`) — o commit âncora do release é
-  garantido pelo ruleset, não uma convenção.
+  `merge`** (`allowed_merge_methods: [merge]`) — com o ruleset ativo, o commit
+  âncora do release é garantido pela plataforma, não por convenção. **Com o repo
+  privado no plano Free o ruleset está desligado** (ver aviso abaixo) e isso volta
+  a ser disciplina de quem opera.
 - **Default branch:** `main`.
 - **Workflow permissions do repo:** `read` por padrão — o que é seguro, porque
   cada workflow eleva só o que precisa declarando `permissions:` no próprio YAML
   (`contents: write` no bump e no release).
-- **Rulesets** (repo público, então é grátis):
+- **Rulesets** — ⚠️ **hoje estão desligados**: ruleset exige repo **público**
+  (no plano Free) ou plano pago (Pro/Team) quando o repo é privado. Este repo
+  **virou privado**, então o GitHub desabilitou os dois e a API responde
+  `403 Upgrade to GitHub Pro or make this repository public to enable this
+  feature`. O desenho abaixo é o que vale quando o repo estiver público (ou com
+  plano pago) — foi assim que o fluxo foi validado:
   - `protege-main`: exige PR antes do merge (0 aprovações) **só por merge commit**
     (`allowed_merge_methods: [merge]`), exige o check `ci` verde, bloqueia force
     push e bloqueia deleção. Tem `bypass` de admin — é o que permite o **hotfix
@@ -234,7 +240,11 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
     admin apaga ou reescreve a `develop` (testado: force push retorna `GH013
     Cannot force-push to this branch` e o DELETE não passa). Ela **não pode exigir
     PR**: o `bump.yml` e o job `sync-develop` pusham direto nela.
-- Em repo privado no plano free nada disso é possível: `rulesets` exigem Pro.
+- **O que continua valendo em repo privado:** as configurações do repo
+  (`allow_rebase_merge: false`, `delete_branch_on_merge: false`, default branch
+  `main`) — essas não dependem de plano. "Proteção" de ruleset não: em repo
+  privado no Free, nada impede push direto na `main`, force push ou deleção da
+  `develop`.
 - ⚠️ **`bypass` de admin vale para TODAS as regras do ruleset em que está.** Com
   `bypass` na `main`, push direto, force push e deleção passam por cima das regras
   (deleção da default branch o GitHub barra de qualquer jeito). Por isso a
@@ -262,6 +272,8 @@ Checklist do que o padrão exige:
       default (Dependabot, por exemplo) olha pra branch errada.
 - [ ] Rulesets: `main` com PR (só merge commit) + check `ci` + bypass admin;
       `develop` com force push/deleção bloqueados, **sem** bypass (nunca exigir PR).
+      ⚠️ **Só existem em repo público no plano Free** (ou plano pago): repo privado
+      no Free fica sem nenhuma dessas travas.
 - [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.
 - [ ] Nenhum secret: tudo roda com o `GITHUB_TOKEN`.
 - [ ] Se o PaaS builda a cada push na `main`: manter o bump fora da `main`

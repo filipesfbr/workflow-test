@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Este repositório é a **referência do pipeline padrão** dos projetos do Filipe:
+Este repositório é a **referência do pipeline padrão** dos meus projetos:
 
 ```
 CI → bump na develop → release por tag → sync main → develop

@@ -17,7 +17,7 @@
     "checks": "npm run check:extenso && npm run check:total"
   },
   "devDependencies": {
-    "@eslint/js": "^9.14.0",
+    "@eslint/js": "^10.0.1",
     "eslint": "^9.14.0",
     "globals": "^15.12.0",
     "typescript": "^5.6.3",

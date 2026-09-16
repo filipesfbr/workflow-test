@@ -10,10 +10,11 @@ Use-o como fonte da verdade ao padronizar/adequar outro repositório.
 
 - **Leia o `README.md` antes de propor qualquer mudança de fluxo** — ele mapeia
   evento por evento, com as guardas e o porquê de cada decisão.
-- Os arquivos a copiar são `.github/workflows/{ci,bump,release}.yml` (+
-  `.github/pull_request_template.md`).
+- Os arquivos a copiar são `.github/workflows/{ci,bump,release}.yml`,
+  `.github/pull_request_template.md` e `.github/dependabot.yml`.
 - Checklist de adaptação por repo de destino: README § *Portar para outro
-  repositório*.
+  repositório*. A parte de configuração do repo (branches, settings, rulesets)
+  é `scripts/bootstrap-repo.sh owner/repo`.
 - **Não simplifique as guardas sem entender o que elas seguram:**
   - bump na `develop`, e não na branch do PR (evita o "Approve and run");
   - `release.yml` nunca escreve na `main` (evita segundo deploy);

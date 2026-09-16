@@ -1,9 +1,9 @@
 {
   "name": "workflow-test",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "private": true,
   "type": "module",
-  "description": "Repositório de teste do pipeline padrão: CI → bump no PR → release por tag → sync main→develop",
+  "description": "Repositório de teste do pipeline padrão: CI → bump na develop → release por tag → sync main→develop",
   "engines": {
     "node": ">=22"
   },

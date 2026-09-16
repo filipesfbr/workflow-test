@@ -231,12 +231,14 @@ na `develop` bumpa de novo (agora 0.1.4 == `v0.1.4` → 0.1.5).
 - **Workflow permissions do repo:** `read` por padrão — o que é seguro, porque
   cada workflow eleva só o que precisa declarando `permissions:` no próprio YAML
   (`contents: write` no bump e no release).
-- **Rulesets** — ⚠️ **hoje estão desligados**: ruleset exige repo **público**
-  (no plano Free) ou plano pago (Pro/Team) quando o repo é privado. Este repo
-  **virou privado**, então o GitHub desabilitou os dois e a API responde
-  `403 Upgrade to GitHub Pro or make this repository public to enable this
-  feature`. O desenho abaixo é o que vale quando o repo estiver público (ou com
-  plano pago) — foi assim que o fluxo foi validado:
+- **Rulesets** — ⚠️ **desligados em repo privado no plano Free, e é assim que
+  fica** (não é um estado temporário pra "ativar depois"): ruleset exige repo
+  **público** (no plano Free) ou plano pago (Pro/Team) quando o repo é privado.
+  A API responde `403 Upgrade to GitHub Pro or make this repository public to
+  enable this feature`. `scripts/bootstrap-repo.sh` tenta criar os dois abaixo
+  e cai pra warning (não falha) quando bate nesse 403. O desenho abaixo é o que
+  vale quando o repo estiver público (ou com plano pago) — foi assim que o
+  fluxo foi validado:
   - `protege-main`: exige PR antes do merge (0 aprovações) **só por merge commit**
     (`allowed_merge_methods: [merge]`), exige o check `ci` verde, bloqueia force
     push e bloqueia deleção. Tem `bypass` de admin — é o que permite o **hotfix
@@ -265,21 +267,24 @@ regras dele barra push normal — só force push e deleção.
 
 Checklist do que o padrão exige:
 
-- [ ] Os arquivos de `.github/`: `workflows/{ci,bump,release}.yml` e
-      `pull_request_template.md`.
+- [ ] Os arquivos de `.github/`: `workflows/{ci,bump,release}.yml`,
+      `pull_request_template.md` e `dependabot.yml`.
 - [ ] `AGENTS.md` no repo de destino, apontando para este padrão.
-- [ ] `package.json` com `version` e scripts `lint`, `build`, `test`, `checks`.
-- [ ] Branches `main` (default) e `develop`; `delete_branch_on_merge: false`.
-      ⚠️ **Empurre a `main` primeiro**: a primeira branch que chega num repo vazio
+- [ ] `package.json` com `name`/`description` do projeto de destino (não copiar
+      os deste repo), `version` e scripts `lint`, `build`, `test`, `checks`.
+- [ ] **Empurre a `main` primeiro**: a primeira branch que chega num repo vazio
       vira a *default branch*. Empurrando a `develop` antes, ela vira a default —
       e aí não pode ser deletada (nem pelo sync, para testar), o ruleset
       `protege-main` não governa a branch certa e qualquer ferramenta que leia a
       default (Dependabot, por exemplo) olha pra branch errada.
-- [ ] Rulesets: `main` com PR (só merge commit) + check `ci` + bypass admin;
-      `develop` com force push/deleção bloqueados, **sem** bypass (nunca exigir PR).
-      ⚠️ **Só existem em repo público no plano Free** (ou plano pago): repo privado
-      no Free fica sem nenhuma dessas travas.
-- [ ] Squash habilitado para PRs em `develop`; merge commit para PRs em `main`.
+- [ ] Rode `scripts/bootstrap-repo.sh owner/repo` — cria a `develop` a partir da
+      `main`, seta `delete_branch_on_merge: false` + squash/merge-commit (sem
+      rebase), e tenta os rulesets abaixo. **Só existem em repo público** (no
+      plano Free) **ou plano pago** (repo privado no Free fica sem essas travas
+      — o script detecta e avisa em vez de falhar; ver seção *Configuração do
+      repo*).
+      - `main`: PR obrigatório (só merge commit) + check `ci` + bypass admin.
+      - `develop`: force push/deleção bloqueados, **sem** bypass (nunca exigir PR).
 - [ ] Nenhum secret: tudo roda com o `GITHUB_TOKEN`.
 - [ ] Se o PaaS builda a cada push na `main`: manter o bump fora da `main`
       (é o desenho deste repo), senão cada release vira dois builds.
@@ -288,11 +293,13 @@ Checklist do que o padrão exige:
 
 - Referências usadas: `actions/checkout@v7`, `actions/setup-node@v7` e
   `softprops/action-gh-release@v3`.
-- Pela **major** (`@v7`), não por SHA: é um template didático e o Dependabot cuida
-  dos minors/patches. Em repo sensível, pinar por SHA é o recomendado.
-- Não há bot de dependências no padrão: **atualizar as actions é ação manual**.
-  Trocando de major (ex.: `v7` -> `v8`), conferir o runtime exigido do runner e
-  validar com um PR (o CI cobre), porque o job de release só roda na `main`.
+- Pela **major** (`@v7`), não por SHA: é um template didático. Em repo sensível,
+  pinar por SHA é o recomendado.
+- `.github/dependabot.yml` abre PR semanal pra `npm` e `github-actions`, contra a
+  `develop` (mesmo fluxo de qualquer outro PR). **Mergear é decisão manual** —
+  Dependabot não faz auto-merge aqui. Trocando de major (ex.: `v7` -> `v8`),
+  conferir o runtime exigido do runner e validar com o PR (o CI cobre), porque o
+  job de release só roda na `main`.
 
 ## Uso local
 
